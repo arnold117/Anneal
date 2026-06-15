@@ -20,6 +20,7 @@ from anneal.services.grill_service import GrillService
 from anneal.services.park_service import ParkService
 from anneal.services.promote_service import PromoteService
 from anneal.store.event_store import InMemoryEventStore
+from anneal.store.repository import InMemoryRepository
 
 
 # ---------------------------------------------------------------------------
@@ -38,8 +39,13 @@ def event_svc(store):
 
 
 @pytest.fixture
-def park_svc(store, event_svc):
-    return ParkService(store, event_svc)
+def repo():
+    return InMemoryRepository()
+
+
+@pytest.fixture
+def park_svc(store, event_svc, repo):
+    return ParkService(store, event_svc, repo=repo)
 
 
 @pytest.fixture

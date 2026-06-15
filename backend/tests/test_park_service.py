@@ -14,6 +14,7 @@ from anneal.domain.projections import is_parked, lens_feed_projection
 from anneal.services.event_service import EventService
 from anneal.services.park_service import ParkService
 from anneal.store.event_store import InMemoryEventStore
+from anneal.store.repository import InMemoryRepository
 
 
 # ---------------------------------------------------------------------------
@@ -29,13 +30,18 @@ def store():
 
 
 @pytest.fixture
+def repo():
+    return InMemoryRepository()
+
+
+@pytest.fixture
 def event_service(store):
     return EventService(store)
 
 
 @pytest.fixture
-def svc(store, event_service):
-    return ParkService(store, event_service)
+def svc(store, event_service, repo):
+    return ParkService(store, event_service, repo=repo)
 
 
 # ===========================================================================
@@ -147,13 +153,7 @@ class TestListParked:
         store.append(a2.id, answer)
         store.append(a2.id, verdict)
 
-        # Build the artifacts_with_events list
-        artifacts_with_events = [
-            (a1.id, store.get_events(a1.id)),
-            (a2.id, store.get_events(a2.id)),
-        ]
-
-        parked_ids = svc.list_parked(LIBRARY, artifacts_with_events)
+        parked_ids = svc.list_parked(LIBRARY)
 
         # a1 is still parked (only park event)
         assert a1.id in parked_ids
@@ -170,23 +170,14 @@ class TestListParked:
         )
         store.append(a1.id, challenge)
 
-        artifacts_with_events = [
-            (a1.id, store.get_events(a1.id)),
-        ]
-
-        assert svc.list_parked(LIBRARY, artifacts_with_events) == []
+        assert svc.list_parked(LIBRARY) == []
 
     def test_all_parked(self, svc, store):
         """list_parked returns all artifact_ids when none are grilled."""
         a1, _ = svc.park(LIBRARY, "one")
         a2, _ = svc.park(LIBRARY, "two")
 
-        artifacts_with_events = [
-            (a1.id, store.get_events(a1.id)),
-            (a2.id, store.get_events(a2.id)),
-        ]
-
-        parked_ids = svc.list_parked(LIBRARY, artifacts_with_events)
+        parked_ids = svc.list_parked(LIBRARY)
         assert set(parked_ids) == {a1.id, a2.id}
 
 

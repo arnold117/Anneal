@@ -17,12 +17,18 @@ from tests.fakes import FakeLLMClient
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
     """Fresh TestClient per test — each test gets a clean in-memory state.
 
     Using the context manager form ensures the lifespan (startup/shutdown)
     runs, which initialises in-memory stores and services.
+
+    Sets LLM env vars to empty strings so load_dotenv (override=False)
+    won't fill them from .env — no real LLM client is created.  Tests
+    that need an LLM use separate fixtures that inject a FakeLLMClient.
     """
+    monkeypatch.setenv("ANNEAL_LLM_KEY", "")
+    monkeypatch.setenv("ANNEAL_LLM_MODEL", "")
     app = create_app()
     with TestClient(app) as c:
         yield c
@@ -580,8 +586,10 @@ class TestReviewKind:
 
 
 @pytest.fixture()
-def client_with_challenge_llm():
+def client_with_challenge_llm(monkeypatch):
     """TestClient with a FakeLLMClient that returns a challenge response."""
+    monkeypatch.setenv("ANNEAL_LLM_KEY", "")
+    monkeypatch.setenv("ANNEAL_LLM_MODEL", "")
     app = create_app()
     with TestClient(app) as c:
         fake_llm = FakeLLMClient([
@@ -592,8 +600,10 @@ def client_with_challenge_llm():
 
 
 @pytest.fixture()
-def client_with_verdict_llm():
+def client_with_verdict_llm(monkeypatch):
     """TestClient with a FakeLLMClient that returns a verdict response."""
+    monkeypatch.setenv("ANNEAL_LLM_KEY", "")
+    monkeypatch.setenv("ANNEAL_LLM_MODEL", "")
     app = create_app()
     with TestClient(app) as c:
         fake_llm = FakeLLMClient([
@@ -604,8 +614,10 @@ def client_with_verdict_llm():
 
 
 @pytest.fixture()
-def client_with_bad_llm():
+def client_with_bad_llm(monkeypatch):
     """TestClient with a FakeLLMClient that returns garbage (unparseable JSON)."""
+    monkeypatch.setenv("ANNEAL_LLM_KEY", "")
+    monkeypatch.setenv("ANNEAL_LLM_MODEL", "")
     app = create_app()
     with TestClient(app) as c:
         fake_llm = FakeLLMClient(["this is not json at all"])

@@ -38,6 +38,7 @@ from anneal.services.lens_feed_service import (
 from anneal.services.park_service import ParkService
 from anneal.services.promote_service import PromoteService
 from anneal.store.event_store import InMemoryEventStore
+from anneal.store.repository import InMemoryRepository
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +54,9 @@ class ServiceStack:
     def __init__(self) -> None:
         self.store = InMemoryEventStore()
         self.feed_store = InMemoryLensFeedStore()
+        self.repo = InMemoryRepository()
         self.event_svc = EventService(self.store)
-        self.park_svc = ParkService(self.store, self.event_svc)
+        self.park_svc = ParkService(self.store, self.event_svc, repo=self.repo)
         self.grill_svc = GrillService(self.store, self.event_svc)
         self.promote_svc = PromoteService(self.store, self.event_svc)
         self.lens_feed_svc = LensFeedService(

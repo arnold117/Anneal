@@ -30,6 +30,7 @@ class TestLoadLLMConfig:
     def test_provider_defaults_to_openai(self, monkeypatch):
         monkeypatch.setattr(config_mod, "load_dotenv", _noop_load_dotenv)
         monkeypatch.setenv("ANNEAL_LLM_KEY", "sk-test")
+        monkeypatch.setenv("ANNEAL_LLM_MODEL", "gpt-4")
         monkeypatch.delenv("ANNEAL_LLM_PROVIDER", raising=False)
 
         cfg = load_llm_config()
@@ -46,6 +47,7 @@ class TestLoadLLMConfig:
     def test_base_url_optional(self, monkeypatch):
         monkeypatch.setattr(config_mod, "load_dotenv", _noop_load_dotenv)
         monkeypatch.setenv("ANNEAL_LLM_KEY", "sk-test")
+        monkeypatch.setenv("ANNEAL_LLM_MODEL", "gpt-4")
         monkeypatch.delenv("ANNEAL_LLM_BASE_URL", raising=False)
 
         cfg = load_llm_config()

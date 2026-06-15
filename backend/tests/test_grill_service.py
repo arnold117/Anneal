@@ -18,6 +18,7 @@ from anneal.services.event_service import EventService
 from anneal.services.grill_service import GrillService
 from anneal.services.park_service import ParkService
 from anneal.store.event_store import InMemoryEventStore
+from anneal.store.repository import InMemoryRepository
 from tests.fakes import FakeLLMClient
 
 
@@ -431,7 +432,7 @@ class TestParkToGrillIntegration:
 
     def test_park_service_to_grill_survive_confirmed(self, store, event_svc, svc):
         """Use ParkService to create artifact+claim, then grill to confirmed survive."""
-        park_svc = ParkService(store, event_svc)
+        park_svc = ParkService(store, event_svc, repo=InMemoryRepository())
 
         # Park creates real artifact + claim with auto-generated IDs.
         artifact, claim = park_svc.park("lib-1", "Test hypothesis", kind="idea")
