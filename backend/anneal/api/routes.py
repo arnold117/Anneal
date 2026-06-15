@@ -14,7 +14,6 @@ from anneal.api.deps import (
     get_event_store,
     get_grill_service,
     get_lens_feed_service,
-    get_library_artifacts,
     get_park_service,
     get_promote_service,
 )
@@ -122,15 +121,11 @@ def _handle_domain_error(exc: Exception) -> HTTPException:
 def park(
     req: ParkRequest,
     park_svc: ParkService = Depends(get_park_service),
-    lib_artifacts: dict = Depends(get_library_artifacts),
 ):
     try:
         artifact, claim = park_svc.park(req.library_id, req.body, req.kind)
     except (ValueError,) as exc:
         raise _handle_domain_error(exc)
-
-    # Track artifact → library mapping (temporary until repository exists).
-    lib_artifacts[req.library_id].append(artifact.id)
 
     return {
         "artifact": artifact.model_dump(mode="json"),
@@ -142,19 +137,9 @@ def park(
 def list_parked(
     library_id: str,
     park_svc: ParkService = Depends(get_park_service),
-    store: EventStore = Depends(get_event_store),
-    lib_artifacts: dict = Depends(get_library_artifacts),
 ):
-    """List parked artifact IDs for a library.
-
-    Uses the temporary library_artifacts mapping since there is no
-    repository yet.
-    """
-    artifact_ids = lib_artifacts.get(library_id, [])
-    artifacts_with_events = [
-        (aid, store.get_events(aid)) for aid in artifact_ids
-    ]
-    parked_ids = park_svc.list_parked(library_id, artifacts_with_events)
+    """List parked artifact IDs for a library."""
+    parked_ids = park_svc.list_parked(library_id)
     return {"artifact_ids": parked_ids}
 
 

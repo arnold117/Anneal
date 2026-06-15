@@ -2,11 +2,14 @@
 
 Module-level state holding store instances.  Provides FastAPI Depends
 callables for each service.  Uses a lifespan context manager for setup.
+
+When ``ANNEAL_DATABASE_URL`` is set, uses PostgreSQL-backed stores and
+repository.  Otherwise falls back to in-memory implementations (tests).
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -19,10 +22,21 @@ from anneal.services.grill_service import GrillService
 from anneal.services.lens_feed_service import (
     InMemoryLensFeedStore,
     LensFeedService,
+    PostgresLensFeedStore,
 )
 from anneal.services.park_service import ParkService
 from anneal.services.promote_service import PromoteService
-from anneal.store.event_store import EventStore, InMemoryEventStore
+from anneal.store.database import create_db_engine, create_all_tables
+from anneal.store.event_store import (
+    EventStore,
+    InMemoryEventStore,
+    PostgresEventStore,
+)
+from anneal.store.repository import (
+    InMemoryRepository,
+    PostgresRepository,
+    Repository,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -33,9 +47,24 @@ _state: dict[str, object] = {}
 
 
 def _init_state() -> None:
-    """Initialize all stores and services (InMemory for now)."""
-    event_store = InMemoryEventStore()
-    feed_store = InMemoryLensFeedStore()
+    """Initialize all stores and services.
+
+    If ``ANNEAL_DATABASE_URL`` is set, use PostgreSQL-backed stores.
+    Otherwise fall back to in-memory implementations (suitable for tests).
+    """
+    db_url = os.getenv("ANNEAL_DATABASE_URL")
+
+    if db_url:
+        engine = create_db_engine(db_url)
+        create_all_tables(engine)
+        event_store: EventStore = PostgresEventStore(engine)
+        feed_store = PostgresLensFeedStore(engine)
+        repo: Repository = PostgresRepository(engine)
+    else:
+        event_store = InMemoryEventStore()
+        feed_store = InMemoryLensFeedStore()
+        repo = InMemoryRepository()
+
     event_service = EventService(event_store)
 
     llm_config = load_llm_config()
@@ -48,15 +77,12 @@ def _init_state() -> None:
 
     _state["event_store"] = event_store
     _state["feed_store"] = feed_store
+    _state["repository"] = repo
     _state["event_service"] = event_service
-    _state["park_service"] = ParkService(event_store, event_service)
+    _state["park_service"] = ParkService(event_store, event_service, repo=repo)
     _state["grill_service"] = GrillService(event_store, event_service, llm=llm_client)
     _state["promote_service"] = PromoteService(event_store, event_service)
     _state["lens_feed_service"] = LensFeedService(event_store, feed_store)
-
-    # Temporary mapping: library_id -> [artifact_id]
-    # Updated when park() is called.  Will be replaced by a proper repository.
-    _state["library_artifacts"] = defaultdict(list)
 
 
 @asynccontextmanager
@@ -96,5 +122,5 @@ def get_lens_feed_service() -> LensFeedService:
     return _state["lens_feed_service"]  # type: ignore[return-value]
 
 
-def get_library_artifacts() -> dict[str, list[str]]:
-    return _state["library_artifacts"]  # type: ignore[return-value]
+def get_repository() -> Repository:
+    return _state["repository"]  # type: ignore[return-value]

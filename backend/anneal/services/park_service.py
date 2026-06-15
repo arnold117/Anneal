@@ -16,19 +16,20 @@ from anneal.domain.models import Artifact, Claim
 from anneal.domain.projections import is_parked
 from anneal.services.event_service import EventService
 from anneal.store.event_store import EventStore
+from anneal.store.repository import Repository
 
 
 class ParkService:
     """Service for parking inspirations into the sealed isolation zone.
 
-    Creates Artifact and Claim objects but does NOT persist them to a
-    repository (no repository exists yet -- deferred).  Returns them for
-    the caller to handle.  The event IS persisted to the EventStore.
+    Creates Artifact and Claim objects, persists them to the repository,
+    and appends a PARK event to the EventStore.
     """
 
-    def __init__(self, store: EventStore, event_service: EventService) -> None:
+    def __init__(self, store: EventStore, event_service: EventService, repo: Repository) -> None:
         self._store = store
         self._event_service = event_service
+        self._repo = repo
 
     def park(
         self, library_id: str, body: str, kind: str = "idea"
@@ -54,6 +55,9 @@ class ParkService:
         artifact = Artifact(library_id=library_id, kind=kind, goal=body)
         claim = Claim(library_id=library_id, body=body, artifact_ids=[artifact.id])
 
+        self._repo.create_artifact(artifact)
+        self._repo.create_claim(claim)
+
         event = make_event(
             type=PARK,
             actor="user",
@@ -66,21 +70,17 @@ class ParkService:
 
         return artifact, claim
 
-    def list_parked(
-        self,
-        library_id: str,
-        artifacts_with_events: list[tuple[str, list]],
-    ) -> list[str]:
+    def list_parked(self, library_id: str) -> list[str]:
         """Return artifact_ids that are still parked.
 
-        Takes a list of (artifact_id, events) tuples because the service
-        doesn't own artifact storage -- it only knows about event streams.
-        Uses is_parked() projection.
+        Uses the repository to list all artifacts for the library, then
+        filters by is_parked() projection on each artifact's event stream.
         """
+        artifacts = self._repo.list_artifacts(library_id)
         return [
-            artifact_id
-            for artifact_id, events in artifacts_with_events
-            if is_parked(events)
+            artifact.id
+            for artifact in artifacts
+            if is_parked(self._store.get_events(artifact.id))
         ]
 
     def get_events(self, artifact_id: str) -> list:
