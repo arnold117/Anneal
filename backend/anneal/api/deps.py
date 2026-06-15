@@ -15,6 +15,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 
+from anneal.domain.models import Library
 from anneal.llm.client import create_client
 from anneal.llm.config import load_llm_config
 from anneal.services.event_service import EventService
@@ -64,6 +65,10 @@ def _init_state() -> None:
         event_store = InMemoryEventStore()
         feed_store = InMemoryLensFeedStore()
         repo = InMemoryRepository()
+
+    # Ensure default library exists (idempotent — safe on every startup)
+    if repo.get_library("default") is None:
+        repo.create_library(Library(id="default", name="Default Library"))
 
     event_service = EventService(event_store)
 

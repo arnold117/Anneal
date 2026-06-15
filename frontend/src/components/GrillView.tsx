@@ -53,6 +53,13 @@ export default function GrillView({ artifactId, claim, artifact, onRefresh }: Pr
     }
   }, [flow.events, flow.phase])
 
+  // Refresh sidebar when grill phase transitions to a meaningful state
+  useEffect(() => {
+    if (flow.phase === "done" || flow.phase === "confirmed_kill" || flow.phase === "awaiting_decision" || flow.phase === "confirmed_survive") {
+      onRefresh()
+    }
+  }, [flow.phase, onRefresh])
+
   const handleSubmitAnswer = () => {
     if (!answerText.trim()) return
     const text = answerText.trim()

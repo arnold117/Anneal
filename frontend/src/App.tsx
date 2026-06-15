@@ -60,7 +60,7 @@ function App() {
         // Find the claim from artifact's park event or from the artifact itself
         // The park event should have a claim, or we fetch from the first claim reference
         const parkEvent = events.find(e => e.type === "park")
-        const claimId = parkEvent?.payload?.claim_id as string | undefined
+        const claimId = parkEvent?.target_ref || (parkEvent?.payload?.claim_id as string | undefined)
         if (claimId) {
           const { claim: c } = await getClaim(claimId)
           if (!cancelled) setClaim(c)

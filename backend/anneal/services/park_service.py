@@ -64,7 +64,7 @@ class ParkService:
             confirmed=True,
             debt=False,
             target_ref=claim.id,
-            payload={"kind": kind},
+            payload={"kind": kind, "claim_id": claim.id},
         )
         self._event_service.append_event(artifact.id, event)
 
