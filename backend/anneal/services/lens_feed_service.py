@@ -22,10 +22,13 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from sqlalchemy import Engine, insert, select
+
 from anneal.domain.events import Event
 from anneal.domain.invariants import ParkIsolationViolation, assert_park_isolation
 from anneal.domain.projections import lens_feed_projection
 from anneal.store.event_store import EventStore
+from anneal.store import schema
 
 
 class LensFeedEntry(BaseModel):
@@ -57,6 +60,45 @@ class InMemoryLensFeedStore:
 
     def list_entries(self, library_id: str) -> list[LensFeedEntry]:
         return [e for e in self._entries if e.library_id == library_id]
+
+
+class PostgresLensFeedStore:
+    """PostgreSQL-backed Lens feed store using SQLAlchemy Core."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def append(self, entry: LensFeedEntry) -> None:
+        with self._engine.begin() as conn:
+            conn.execute(
+                insert(schema.lens_feed_entries).values(
+                    id=entry.id,
+                    library_id=entry.library_id,
+                    artifact_id=entry.artifact_id,
+                    event_id=entry.event_id,
+                    event_type=entry.event_type,
+                    ingested_at=entry.ingested_at,
+                )
+            )
+
+    def list_entries(self, library_id: str) -> list[LensFeedEntry]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(
+                select(schema.lens_feed_entries)
+                .where(schema.lens_feed_entries.c.library_id == library_id)
+                .order_by(schema.lens_feed_entries.c.ingested_at)
+            ).fetchall()
+        return [
+            LensFeedEntry(
+                id=row.id,
+                library_id=row.library_id,
+                artifact_id=row.artifact_id,
+                event_id=row.event_id,
+                event_type=row.event_type,
+                ingested_at=row.ingested_at,
+            )
+            for row in rows
+        ]
 
 
 class LensFeedService:

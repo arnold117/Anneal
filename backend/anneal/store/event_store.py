@@ -5,7 +5,11 @@ import sqlite3
 from collections import defaultdict
 from typing import Protocol
 
+from sqlalchemy import Engine, insert, select, func
+from sqlalchemy.exc import IntegrityError
+
 from anneal.domain.events import Event
+from anneal.store import schema
 
 
 class DuplicateEventError(Exception):
@@ -102,3 +106,54 @@ class SqliteEventStore:
             (artifact_id, event_type),
         )
         return [Event.model_validate(json.loads(row[0])) for row in cursor.fetchall()]
+
+
+class PostgresEventStore:
+    """PostgreSQL-backed event store using SQLAlchemy Core."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def append(self, artifact_id: str, event: Event) -> None:
+        data = event.model_dump(mode="json")
+        with self._engine.begin() as conn:
+            # Get next sequence number for this artifact.
+            row = conn.execute(
+                select(func.coalesce(func.max(schema.events.c.seq), -1) + 1).where(
+                    schema.events.c.artifact_id == artifact_id
+                )
+            ).scalar()
+            next_seq: int = row  # type: ignore[assignment]
+
+            try:
+                conn.execute(
+                    insert(schema.events).values(
+                        id=event.id,
+                        artifact_id=artifact_id,
+                        seq=next_seq,
+                        ts=event.ts,
+                        type=event.type,
+                        data=data,
+                    )
+                )
+            except IntegrityError as exc:
+                raise DuplicateEventError(f"Event {event.id} already exists") from exc
+
+    def get_events(self, artifact_id: str) -> list[Event]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(
+                select(schema.events.c.data)
+                .where(schema.events.c.artifact_id == artifact_id)
+                .order_by(schema.events.c.ts, schema.events.c.seq)
+            ).fetchall()
+        return [Event.model_validate(row.data) for row in rows]
+
+    def get_events_by_type(self, artifact_id: str, event_type: str) -> list[Event]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(
+                select(schema.events.c.data)
+                .where(schema.events.c.artifact_id == artifact_id)
+                .where(schema.events.c.type == event_type)
+                .order_by(schema.events.c.ts, schema.events.c.seq)
+            ).fetchall()
+        return [Event.model_validate(row.data) for row in rows]
