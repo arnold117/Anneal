@@ -481,6 +481,60 @@ class TestFullFlow:
 
 
 # ---------------------------------------------------------------------------
+# Edit endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestEdit:
+    def test_create_edit_surface(self, client: TestClient):
+        data = _park(client)
+        artifact_id = data["artifact"]["id"]
+        resp = client.post(
+            f"/api/v1/artifact/{artifact_id}/edit",
+            json={"content": "revised text", "scope": "surface"},
+        )
+        assert resp.status_code == 200
+        event = resp.json()["event"]
+        assert event["type"] == "edit"
+        assert event["confirmed"] is False
+        assert event["payload"]["content"] == "revised text"
+        assert event["payload"]["scope"] == "surface"
+
+    def test_create_edit_substance(self, client: TestClient):
+        data = _park(client)
+        artifact_id = data["artifact"]["id"]
+        resp = client.post(
+            f"/api/v1/artifact/{artifact_id}/edit",
+            json={"content": "new claim text", "scope": "substance"},
+        )
+        assert resp.status_code == 200
+        event = resp.json()["event"]
+        assert event["type"] == "edit"
+        assert event["payload"]["scope"] == "substance"
+
+    def test_create_edit_invalid_scope_returns_400(self, client: TestClient):
+        data = _park(client)
+        artifact_id = data["artifact"]["id"]
+        resp = client.post(
+            f"/api/v1/artifact/{artifact_id}/edit",
+            json={"content": "text", "scope": "invalid"},
+        )
+        assert resp.status_code == 400
+
+    def test_edit_appears_in_trajectory(self, client: TestClient):
+        data = _park(client)
+        artifact_id = data["artifact"]["id"]
+        client.post(
+            f"/api/v1/artifact/{artifact_id}/edit",
+            json={"content": "revised text", "scope": "surface"},
+        )
+        resp = client.get(f"/api/v1/artifact/{artifact_id}/trajectory")
+        assert resp.status_code == 200
+        types = [e["type"] for e in resp.json()["events"]]
+        assert "edit" in types
+
+
+# ---------------------------------------------------------------------------
 # Fix 1: Grill state validation via API
 # ---------------------------------------------------------------------------
 

@@ -60,6 +60,14 @@ export const getTrajectory = (artifactId: string) =>
 export const getDoc = (artifactId: string) =>
   request<{ events: Event[] }>("GET", `/artifact/${artifactId}/doc`)
 
+// Edit
+export const createEdit = (artifactId: string, content: string, scope: "surface" | "substance") =>
+  request<{ event: Event }>("POST", `/artifact/${artifactId}/edit`, { content, scope })
+
+// Batch confirm
+export const batchConfirm = (artifactId: string, eventIds: string[]) =>
+  request<{ events: Event[] }>("POST", `/events/${artifactId}/batch-confirm`, { event_ids: eventIds })
+
 // Promote
 export const promote = (artifactId: string, claimId: string) =>
   request<{ event: Event }>("POST", `/promote/${artifactId}/${claimId}`)

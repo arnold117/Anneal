@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from anneal.domain.events import EDIT, make_event
 from anneal.api.deps import (
     get_event_service,
     get_event_store,
@@ -94,6 +95,11 @@ class AutoVerdictRequest(BaseModel):
     claim_body: str
     question: str
     answer: str
+
+
+class EditRequest(BaseModel):
+    content: str
+    scope: str  # "surface" | "substance"
 
 
 class LensFeedIngestRequest(BaseModel):
@@ -304,6 +310,27 @@ def promote(
         event = promote_svc.promote(artifact_id, claim_id)
     except (DebtBlockError, UngrilledError, KilledClaimError, ValueError) as exc:
         raise _handle_domain_error(exc)
+    return {"event": event.model_dump(mode="json")}
+
+
+# ---------------------------------------------------------------------------
+# Edit endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/artifact/{artifact_id}/edit")
+def create_edit(
+    artifact_id: str,
+    req: EditRequest,
+    event_svc: EventService = Depends(get_event_service),
+):
+    if req.scope not in ("surface", "substance"):
+        raise HTTPException(status_code=400, detail="scope must be 'surface' or 'substance'")
+    event = make_event(
+        type=EDIT, actor="user", confirmed=False,
+        payload={"content": req.content, "scope": req.scope},
+    )
+    event_svc.append_event(artifact_id, event)
     return {"event": event.model_dump(mode="json")}
 
 

@@ -15,6 +15,7 @@ export function deriveClaimStatus(events: Event[]): ClaimStatus {
 
   const hasGrill = events.some(e => ["challenge", "answer", "verdict"].includes(e.type))
   const hasPark = events.some(e => e.type === "park")
+  const hasPromote = events.some(e => e.type === "promote" && !retracted.has(e.id))
 
   if (hasPark && !hasGrill) return "parked"
 
@@ -28,7 +29,10 @@ export function deriveClaimStatus(events: Event[]): ClaimStatus {
     }
   }
 
-  if (lastOutcome === "survive") return "survived"
   if (lastOutcome === "kill") return "killed"
+  // "survived" requires an explicit promote event — a confirmed survive verdict
+  // alone means the grill flow is still active (user hasn't promoted yet)
+  if (lastOutcome === "survive" && hasPromote) return "survived"
+  if (hasGrill) return "grilling"
   return "grilling"
 }

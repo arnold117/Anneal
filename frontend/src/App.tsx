@@ -172,7 +172,7 @@ function App() {
 
         {/* Tab content */}
         {docTab === "doc" ? (
-          <DocView artifactId={artifact.id} />
+          <DocView artifactId={artifact.id} libraryId={artifact.library_id} />
         ) : (
           <TrajectoryView artifactId={artifact.id} />
         )}
